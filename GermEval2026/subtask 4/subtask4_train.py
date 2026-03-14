@@ -68,7 +68,7 @@ def train_subtask_4():
     print(f"Starting Training for Subtask 4 (Defamation) on {DEVICE}...")
     
     # Load the trial data
-    df = pd.read_csv('def_trial.csv', sep=';')
+    df = pd.read_csv('../data/def/def_trial.csv', sep=';')
     
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = DefamationClassifier(MODEL_NAME).to(DEVICE)
@@ -116,7 +116,7 @@ def train_subtask_4():
     print("Model Training Complete and Saved.")
 
 if __name__ == "__main__":
-    if os.path.exists('def_trial.csv'):
+    if os.path.exists('../data/def/def_trial.csv'):
         train_subtask_4()
     else:
         print("Error: def_trial.csv not found in the current directory.")
