@@ -6,6 +6,7 @@ from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 from torch.utils.data import DataLoader, Dataset
 from sklearn.metrics import f1_score, classification_report
+from sklearn.model_selection import train_test_split
 
 # 1. EDA-BASED CONFIGURATION
 MODEL_NAME = "answerdotai/ModernBERT-base" 
@@ -50,7 +51,6 @@ class DefamationDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
-        # FIXED: Replaced encode_plus with the direct call to fix TokenizersBackend error
         encoding = self.tokenizer(
             str(row['description']), 
             max_length=self.max_len, 
@@ -71,46 +71,53 @@ def train_subtask_4():
     # Load the trial data
     df = pd.read_csv('../data/def/def_trial.csv', sep=';')
     
+    # SPLIT DATA: 80% Train, 20% Validation (To detect overfitting)
+    train_df, val_df = train_test_split(df, test_size=0.20, random_state=42)
+    
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = DefamationClassifier(MODEL_NAME).to(DEVICE)
     
-    # DataLoader
-    dataset = DefamationDataset(df, tokenizer, MAX_LEN)
-    train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    # DataLoaders
+    train_dataset = DefamationDataset(train_df, tokenizer, MAX_LEN)
+    val_dataset = DefamationDataset(val_df, tokenizer, MAX_LEN)
+    
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     # LOSS & OPTIMIZER
-    # Weighted Loss: 5x weight on 'True' cases to boost Macro-F1 (Imbalance Solution)
     class_weights = torch.tensor([1.0, 5.0]).to(DEVICE)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
-    model.train()
     for epoch in range(EPOCHS):
-        total_loss = 0
-        all_preds = []
-        all_labels = []
-        
-        for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}"):
+        # --- TRAINING PHASE ---
+        model.train()
+        total_train_loss = 0
+        for batch in tqdm(train_loader, desc=f"Epoch {epoch+1} [Train]"):
             optimizer.zero_grad()
             ids, mask = batch['ids'].to(DEVICE), batch['mask'].to(DEVICE)
             labels = batch['label'].to(DEVICE)
-            
             outputs = model(ids, mask)
             loss = criterion(outputs, labels)
-            
             loss.backward()
             optimizer.step()
-            
-            total_loss += loss.item()
-            
-            # For Metric Tracking
-            preds = torch.argmax(outputs, dim=1).cpu().numpy()
-            all_preds.extend(preds)
-            all_labels.extend(labels.cpu().numpy())
+            total_train_loss += loss.item()
         
-        # Calculate Macro-F1 after each epoch (Your primary metric)
-        macro_f1 = f1_score(all_labels, all_preds, average='macro')
-        print(f"Epoch {epoch+1} Loss: {total_loss/len(train_loader):.4f} | Macro-F1: {macro_f1:.4f}")
+        # --- VALIDATION PHASE (Unseen Data) ---
+        model.eval()
+        all_val_preds = []
+        all_val_labels = []
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc=f"Epoch {epoch+1} [Val]"):
+                ids, mask = batch['ids'].to(DEVICE), batch['mask'].to(DEVICE)
+                labels = batch['label'].to(DEVICE)
+                outputs = model(ids, mask)
+                preds = torch.argmax(outputs, dim=1).cpu().numpy()
+                all_val_preds.extend(preds)
+                all_val_labels.extend(labels.cpu().numpy())
+        
+        val_macro_f1 = f1_score(all_val_labels, all_val_preds, average='macro')
+        print(f"Epoch {epoch+1} | Train Loss: {total_train_loss/len(train_loader):.4f} | Val Macro-F1: {val_macro_f1:.4f}")
 
     # 5. SAVE MODEL
     torch.save(model.state_dict(), 'subtask4_defamation_model.bin')
@@ -120,4 +127,4 @@ if __name__ == "__main__":
     if os.path.exists('../data/def/def_trial.csv'):
         train_subtask_4()
     else:
-        print("Error: def_trial.csv not found in the current directory.")
+        print("Error: def_trial.csv not found in the correct relative directory.")
