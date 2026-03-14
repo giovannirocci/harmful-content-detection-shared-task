@@ -50,7 +50,8 @@ class DefamationDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
-        encoding = self.tokenizer.encode_plus(
+        # FIXED: Replaced encode_plus with the direct call to fix TokenizersBackend error
+        encoding = self.tokenizer(
             str(row['description']), 
             max_length=self.max_len, 
             padding='max_length',
