@@ -63,6 +63,7 @@ class DefamationDataset(Dataset):
 def train_subtask_4():
     print(f"Starting Training for Subtask 4 (Defamation) on {DEVICE}...")
     
+    # Load dataset
     df = pd.read_csv('../data/def/def_trial.csv', sep=';')
     train_df, val_df = train_test_split(df, test_size=0.20, random_state=42)
     
@@ -74,6 +75,7 @@ def train_subtask_4():
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
+    # Class weights for handling imbalance
     class_weights = torch.tensor([1.0, 5.0]).to(DEVICE)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
@@ -115,18 +117,27 @@ def train_subtask_4():
             final_val_preds = all_val_preds
             final_val_labels = all_val_labels
 
-# --- FINAL VALIDATION RESULTS ---
+    # --- FINAL VALIDATION RESULTS ---
     print("\n--- Final Validation Results (Subtask 4) ---")
     
-    # We add labels=[0, 1] so it doesn't crash if the small Val set misses a class
     print(classification_report(
         final_val_labels, 
         final_val_preds, 
         labels=[0, 1], 
         target_names=['Not Defamatory', 'Defamatory'],
-        zero_division=0  # This prevents a different error if a class has 0 samples
+        zero_division=0
     ))
 
     final_score = f1_score(final_val_labels, final_val_preds, average='macro')
     print(f"OFFICIAL COMPETITION METRIC (Macro-F1): {final_score:.4f}")
+    
+    # Save the model
+    torch.save(model.state_dict(), 'subtask4_defamation_model.bin')
+    print("Model Training Complete and Saved.")
 
+# --- ENTRY POINT ---
+if __name__ == "__main__":
+    if os.path.exists('../data/def/def_trial.csv'):
+        train_subtask_4()
+    else:
+        print("Error: def_trial.csv not found in the expected directory.")
