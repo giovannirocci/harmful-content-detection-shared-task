@@ -115,19 +115,18 @@ def train_subtask_4():
             final_val_preds = all_val_preds
             final_val_labels = all_val_labels
 
-    # --- FINAL VALIDATION RESULTS (Added as requested) ---
+# --- FINAL VALIDATION RESULTS ---
     print("\n--- Final Validation Results (Subtask 4) ---")
-    print(classification_report(final_val_labels, final_val_preds, target_names=['Not Defamatory', 'Defamatory']))
+    
+    # We add labels=[0, 1] so it doesn't crash if the small Val set misses a class
+    print(classification_report(
+        final_val_labels, 
+        final_val_preds, 
+        labels=[0, 1], 
+        target_names=['Not Defamatory', 'Defamatory'],
+        zero_division=0  # This prevents a different error if a class has 0 samples
+    ))
 
     final_score = f1_score(final_val_labels, final_val_preds, average='macro')
     print(f"OFFICIAL COMPETITION METRIC (Macro-F1): {final_score:.4f}")
 
-    # 5. SAVE MODEL
-    torch.save(model.state_dict(), 'subtask4_defamation_model.bin')
-    print("Model Training Complete and Saved.")
-
-if __name__ == "__main__":
-    if os.path.exists('../data/def/def_trial.csv'):
-        train_subtask_4()
-    else:
-        print("Error: def_trial.csv not found.")
