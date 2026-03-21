@@ -11,17 +11,15 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, classification_report
 
 # --- 1. CONFIG ---
-MODEL_NAME = "answerdotai/ModernBERT-base" 
+MODELS_TO_TEST = ["answerdotai/ModernBERT-base", "FacebookAI/xlm-roberta-base"]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Updated path to match: ~/GermanEval2026/src/GermEval2026/EDA/using-trial-data
 DATA_DIR = "../GermEval2026/EDA/using-trial-data/"
 MAX_LEN = 128
 BATCH_SIZE = 16
 EPOCHS = 8
 LEARNING_RATE = 2e-5
 
-# Import Blueprint
+# Import Blueprint from models folder
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.IntentAnalysisModel import IntentAnalysisModel
 
@@ -43,39 +41,22 @@ class MultiTaskDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         enc = self.tokenizer(str(row['description']), max_length=self.max_len, padding='max_length', truncation=True, return_tensors='pt')
-        
-        labels = {}
-        for t in self.maps:
-            val = str(row.get(t, 'nothing')).lower()
-            labels[t] = torch.tensor(self.maps[t].get(val, 0), dtype=torch.long)
-            
-        return {
-            'ids': enc['input_ids'].flatten(),
-            'mask': enc['attention_mask'].flatten(),
-            'labels': labels
-        }
+        labels = {t: torch.tensor(self.maps[t].get(str(row.get(t, 'nothing')).lower(), 0), dtype=torch.long) for t in self.maps}
+        return {'ids': enc['input_ids'].flatten(), 'mask': enc['attention_mask'].flatten(), 'labels': labels}
 
-# --- 3. RUN ENGINE ---
-def run_master_trial():
-    print(f"🚀 Initializing IntentAnalysis Multi-Task Pipeline: {MODEL_NAME}")
+# --- 3. TRAIN ENGINE ---
+def train_model(model_name):
+    print(f"\n{'='*60}\n🚀 STARTING EXPERIMENT: {model_name}\n{'='*60}")
     
-    # A. DATA INGESTION & ROBUST MERGE
+    # A. Data Prep
     tasks = ['c2a', 'dbo', 'vio', 'def']
-    
-    # Verify path exists before loading
-    if not os.path.exists(DATA_DIR):
-        raise FileNotFoundError(f"❌ Data directory not found at: {os.path.abspath(DATA_DIR)}")
-
     dfs = {t: pd.read_csv(os.path.join(DATA_DIR, f"{t}_trial.csv"), sep=';') for t in tasks}
-    
     master_df = dfs['c2a']
     for t in ['dbo', 'vio', 'def']:
         master_df = master_df.merge(dfs[t][['id', t]], on='id', how='outer')
-    
     master_df['description'] = master_df['description'].fillna("N/A")
     train_df, val_df = train_test_split(master_df, test_size=0.2, random_state=42)
 
-    # B. DYNAMIC LOSS WEIGHTS
     weights = {
         'c2a': torch.tensor([1.0, 3.0]).to(DEVICE),
         'dbo': torch.tensor([1.0, 2.0, 4.0, 5.0]).to(DEVICE),
@@ -83,19 +64,18 @@ def run_master_trial():
         'def': torch.tensor([1.0, 5.0]).to(DEVICE)
     }
 
-    # C. INIT MODEL
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = IntentAnalysisModel(MODEL_NAME).to(DEVICE)
-    
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = IntentAnalysisModel(model_name).to(DEVICE)
     train_loader = DataLoader(MultiTaskDataset(train_df, tokenizer, MAX_LEN), batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(MultiTaskDataset(val_df, tokenizer, MAX_LEN), batch_size=BATCH_SIZE, shuffle=False)
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criteria = {t: nn.CrossEntropyLoss(weight=weights[t]) for t in tasks}
 
-    # D. TRAIN & BEST-MODEL TRACKING
-    best_avg_f1 = 0
+    best_mean_f1 = 0
+    final_val_reports = {}
 
+    # B. Training Loop
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0
@@ -104,13 +84,12 @@ def run_master_trial():
             ids, mask = batch['ids'].to(DEVICE), batch['mask'].to(DEVICE)
             outputs = model(ids, mask)
             
-            batch_loss = sum([criteria[t](outputs[t], batch['labels'][t].to(DEVICE)) for t in tasks])
-            
-            batch_loss.backward()
+            loss = sum([criteria[t](outputs[t], batch['labels'][t].to(DEVICE)) for t in tasks])
+            loss.backward()
             optimizer.step()
-            total_loss += batch_loss.item()
+            total_loss += loss.item()
 
-        # VALIDATION
+        # C. Validation
         model.eval()
         val_res = {t: {'p': [], 'l': []} for t in tasks}
         with torch.no_grad():
@@ -120,20 +99,41 @@ def run_master_trial():
                     val_res[t]['p'].extend(torch.argmax(outputs[t], dim=1).cpu().numpy())
                     val_res[t]['l'].extend(batch['labels'][t].numpy())
         
-        current_f1s = [f1_score(val_res[t]['l'], val_res[t]['p'], average='macro') for t in tasks]
-        mean_f1 = np.mean(current_f1s)
+        current_f1s = {t: f1_score(val_res[t]['l'], val_res[t]['p'], average='macro') for t in tasks}
+        mean_f1 = np.mean(list(current_f1s.values()))
+        
         print(f"Epoch {epoch+1} | Loss: {total_loss/len(train_loader):.4f} | Mean Val F1: {mean_f1:.4f}")
 
-        if mean_f1 > best_avg_f1:
-            best_avg_f1 = mean_f1
-            torch.save(model.state_dict(), f"best_intent_model_{MODEL_NAME.split('/')[-1]}.bin")
-            print("⭐️ New Best Model Saved!")
+        # D. Save Best State & Detailed Reports
+        if mean_f1 > best_mean_f1:
+            best_mean_f1 = mean_f1
+            final_val_reports = val_res # Capture the state of the best run
+            model_slug = model_name.split('/')[-1]
+            torch.save(model.state_dict(), f"best_intent_model_{model_slug}.bin")
+            print(f"⭐️ New Best Model Saved for {model_slug}!")
 
-    # E. FINAL GRAND REPORT
-    print("\n" + "="*30 + "\nFINAL MULTI-TASK TRIAL REPORT\n" + "="*30)
+    # E. Print detailed report for this specific model before returning
+    print(f"\nDetailed Reports for {model_name}:")
     for t in tasks:
-        print(f"\n--- Results for Subtask: {t.upper()} ---")
-        print(classification_report(val_res[t]['l'], val_res[t]['p'], zero_division=0))
+        print(f"\n--- {t.upper()} ---")
+        print(classification_report(final_val_reports[t]['l'], final_val_reports[t]['p'], zero_division=0))
+    
+    # Return best scores for the final summary table
+    return {t: f1_score(final_val_reports[t]['l'], final_val_reports[t]['p'], average='macro') for t in tasks}
 
 if __name__ == "__main__":
-    run_master_trial()
+    final_comparison = {}
+    for m_name in MODELS_TO_TEST:
+        final_comparison[m_name] = train_model(m_name)
+
+    # F. FINAL SUMMARY TABLE
+    print("\n" + "🏆" * 20)
+    print("      FINAL BACKBONE COMPARISON (Best Macro-F1)")
+    print("🏆" * 20)
+    
+    comp_df = pd.DataFrame(final_comparison).T
+    print(comp_df.to_string())
+    
+    # Export results to CSV for your research paper
+    comp_df.to_csv("backbone_comparison_results.csv")
+    print("\nResults exported to 'backbone_comparison_results.csv'")
