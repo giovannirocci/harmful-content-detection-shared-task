@@ -14,8 +14,8 @@ from sklearn.metrics import f1_score, classification_report
 MODEL_NAME = "answerdotai/ModernBERT-base" 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Paths relative to this script's location in experiments/
-DATA_DIR = "../../EDA/using-trial-data/"
+# Updated path to match: ~/GermanEval2026/src/GermEval2026/EDA/using-trial-data
+DATA_DIR = "../GermEval2026/EDA/using-trial-data/"
 MAX_LEN = 128
 BATCH_SIZE = 16
 EPOCHS = 8
@@ -46,7 +46,6 @@ class MultiTaskDataset(Dataset):
         
         labels = {}
         for t in self.maps:
-            # Robust label fetching with a default of 0 (Neutral/False)
             val = str(row.get(t, 'nothing')).lower()
             labels[t] = torch.tensor(self.maps[t].get(val, 0), dtype=torch.long)
             
@@ -62,17 +61,21 @@ def run_master_trial():
     
     # A. DATA INGESTION & ROBUST MERGE
     tasks = ['c2a', 'dbo', 'vio', 'def']
+    
+    # Verify path exists before loading
+    if not os.path.exists(DATA_DIR):
+        raise FileNotFoundError(f"❌ Data directory not found at: {os.path.abspath(DATA_DIR)}")
+
     dfs = {t: pd.read_csv(os.path.join(DATA_DIR, f"{t}_trial.csv"), sep=';') for t in tasks}
     
     master_df = dfs['c2a']
     for t in ['dbo', 'vio', 'def']:
         master_df = master_df.merge(dfs[t][['id', t]], on='id', how='outer')
     
-    # Clean up any potential missing text
     master_df['description'] = master_df['description'].fillna("N/A")
     train_df, val_df = train_test_split(master_df, test_size=0.2, random_state=42)
 
-    # B. DYNAMIC LOSS WEIGHTS (Trial Optimized)
+    # B. DYNAMIC LOSS WEIGHTS
     weights = {
         'c2a': torch.tensor([1.0, 3.0]).to(DEVICE),
         'dbo': torch.tensor([1.0, 2.0, 4.0, 5.0]).to(DEVICE),
@@ -101,7 +104,6 @@ def run_master_trial():
             ids, mask = batch['ids'].to(DEVICE), batch['mask'].to(DEVICE)
             outputs = model(ids, mask)
             
-            # Weighted Multi-Task Loss
             batch_loss = sum([criteria[t](outputs[t], batch['labels'][t].to(DEVICE)) for t in tasks])
             
             batch_loss.backward()
@@ -118,7 +120,6 @@ def run_master_trial():
                     val_res[t]['p'].extend(torch.argmax(outputs[t], dim=1).cpu().numpy())
                     val_res[t]['l'].extend(batch['labels'][t].numpy())
         
-        # Calculate Metric
         current_f1s = [f1_score(val_res[t]['l'], val_res[t]['p'], average='macro') for t in tasks]
         mean_f1 = np.mean(current_f1s)
         print(f"Epoch {epoch+1} | Loss: {total_loss/len(train_loader):.4f} | Mean Val F1: {mean_f1:.4f}")
