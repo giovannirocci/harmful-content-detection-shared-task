@@ -26,10 +26,8 @@ from transformers import (
     EarlyStoppingCallback,
 )
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
 
+# Config
 TASK_CONFIG = {
     "c2a": {
         "file": "GermEval2026/data/c2a/c2a_trial.csv",
@@ -59,10 +57,8 @@ TASK_CONFIG = {
 
 DEFAULT_MODEL = "cardiffnlp/twitter-xlm-roberta-base"
 
-# ---------------------------------------------------------------------------
-# Dataset
-# ---------------------------------------------------------------------------
 
+# Dataset
 class TextClassificationDataset(Dataset):
     def __init__(self, texts: list[str], labels: list[int], tokenizer, max_length: int = 128):
         self.encodings = tokenizer(
@@ -84,10 +80,8 @@ class TextClassificationDataset(Dataset):
         }
 
 
-# ---------------------------------------------------------------------------
-# Data loading
-# ---------------------------------------------------------------------------
 
+# Data loading
 def load_data(task: str) -> tuple[list[str], list[int], list[str]]:
     """Load CSV, drop rows with missing labels, and encode labels as integers."""
     cfg = TASK_CONFIG[task]
@@ -101,10 +95,8 @@ def load_data(task: str) -> tuple[list[str], list[int], list[str]]:
     return texts, labels, cfg["labels"]
 
 
-# ---------------------------------------------------------------------------
-# Metrics
-# ---------------------------------------------------------------------------
 
+# Metrics
 def make_compute_metrics(label_names: list[str]):
     def compute_metrics(eval_pred):
         logits, labels = eval_pred
@@ -114,10 +106,8 @@ def make_compute_metrics(label_names: list[str]):
     return compute_metrics
 
 
-# ---------------------------------------------------------------------------
-# Training
-# ---------------------------------------------------------------------------
 
+# Training
 def train(
     task: str,
     model_name: str = DEFAULT_MODEL,
@@ -194,10 +184,8 @@ def train(
     print(f"Model saved to {task_output_dir}/best")
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
+# CLI
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune encoder for GermEval 2026 tasks")
     parser.add_argument("--task", choices=list(TASK_CONFIG.keys()), required=True,
