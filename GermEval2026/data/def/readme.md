@@ -6,14 +6,14 @@ This subdirectory contains the data for the fourth subtask of the shared task on
 
 The dataset contains all tweets for which a majority of the three annotators decided whether or not a statement in a tweet constitutes a defamatory offence under the German Criminal Code (StGB). Specifically, it must be checked whether any of the offences under Sections 185 to 187 of the German Criminal Code (StGB) have been committed. For information on the annotation of the data set and the elements of the offence, please refer to the work of [Zufall et al. (2019)](https://aclanthology.org/N19-1135/).
 
-Origin and structure of the data
+## Origin and structure of the data
 
-The dataset consists of posts and comments from a right-wing extremist movement from 12/12/2014 to 07/07/2016. The training data is provided as a CSV file. An entry has the following format:
+The **training data** for this pilot subtask contains 3,081 tweets. The data set consists of posts and comments from a right-wing extremist movement from 12/12/2014 to 07/07/2016. The training data is provided as a CSV file. An entry has the following format:
 
-“id”;“description”;“def”<br />
-“1064396393598783”;“Oliver, ich guck doch schon mindestens einmal die Woche RTL2-NEWS.”;“false”
+“id”;“description”;“DEF”<br />
+“1064396393598783”;“Oliver, ich guck doch schon mindestens einmal die Woche RTL2-NEWS.”;“FALSE”
 
-The test data is also distributed as a CSV file, containing an ID and the tweet text:
+The **test data** contains 544 tweets. It is also distributed as a CSV file, containing an ID and the tweet text:
 “id”;“description.”
 
 ## Anonymization of data
@@ -29,6 +29,7 @@ For example, the mentions of the organisation Greenpeace and the TV channel ARD 
 
 No further preprocessing steps were performed on the data.
 
-Files
+## Files
 
-* `def_trial.csv`: Sample of the training data set consisting of approximately 3,00 tweets that have been available since the trial phase to familiarise yourself with the data set.
+* `def_trial.csv`: Sample of the training data set consisting of approximately 99 tweets that have been available since the trial phase to familiarise yourself with the data set.
+* `def_train_26.csv`: Complete training data set comprising 3,081 tweets

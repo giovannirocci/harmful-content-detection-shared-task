@@ -20,7 +20,7 @@ The data set consists predominantly of posts and comments from a right-wing extr
 "id";"description";"vio"<br />
 "1064396393598783";"Oliver, ich guck doch schon mindestens einmal die Woche RTL2-NEWS.";"nothing"
 
-The **test dataset** contains 1,571 tweets. It is identical to the GermEval 2025 test set to allow direct comparability between editions. The test data is also distributed as a CSV file, containing an ID and the tweet text:
+The **test dataset** contains 3,861 tweets. The test data is also distributed as a CSV file, containing an ID and the tweet text:
 "id";"description"<br />
 
 ## Anonymization of data
@@ -38,4 +38,5 @@ No further preprocessing steps were performed on the data.
 
 ## Files
 
--  `vio_trial.csv`: Sample of the training data set consisting of approximately 1,000 tweets that have been available since the trial phase to familiarise yourself with the data set. 
+-  `vio_trial.csv`: Sample of the training data set consisting of approximately 1,000 tweets that have been available since the trial phase to familiarise yourself with the data set.
+-  `vio_train_26.csv`: Complete training data set comprising 15,441 tweets

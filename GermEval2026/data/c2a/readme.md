@@ -32,3 +32,4 @@ No further preprocessing steps were performed on the data.
 ## Files
 
 * `c2a_trial.csv`: Sample of the training data set consisting of approximately 1,000 tweets that have been available since the trial phase to familiarise yourself with the data set.
+* `c2a_train.csv`: Complete training data set comprising 15,915 tweets

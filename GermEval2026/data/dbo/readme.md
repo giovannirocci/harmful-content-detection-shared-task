@@ -35,4 +35,5 @@ No further preprocessing steps were performed on the data.
 
 ## Files
 
--  `dbo_trial.csv`: Sample of the training data set consisting of approximately 1,000 tweets that have been available since the trial phase to familiarise yourself with the data set. 
+-  `dbo_trial.csv`: Sample of the training data set consisting of approximately 1,000 tweets that have been available since the trial phase to familiarise yourself with the data set.
+-  `dbo_train_26.csv`: Complete training data set comprising 16,256 tweets 
