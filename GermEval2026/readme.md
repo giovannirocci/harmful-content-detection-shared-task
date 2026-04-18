@@ -28,8 +28,7 @@ To take part in this competition, please register [here](https://www.codabench.o
 | <u>**Date**</u> |  | <u>**Phase/Deadline**</u> |
 | :------------- | :------------- | :------------- |
 | <span style='color: red;'>21 February - 16 March 2026</span> |  | Trial phase |
-| 10 April - 16 May 2026 |  | Training phase |
-| 24 March 2026 |  | Baseline model ready |
-| 17 May - 21 June 2026 |  | Competition phase |
+| 18 April - 23 May 2026 |  | Training phase |
+| 24 May - 21 June 2026 |  | Competition phase |
 | 15 July 2026 |  | Paper submission due |
 | 15 August 2026 |  | Camera ready due |
