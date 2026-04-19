@@ -17,16 +17,16 @@ The dataset contains all tweets for which the three to four annotators reached a
 
 ## Origin and Structure of the Data
 
-The dataset consists predominantly of posts and comments from a right-wing extremist movement from 12/12/2014 to 07/07/2016. A total of 10,479 tweets were annotated for violence detection, divided into training and test data using stratified sampling at a ratio of 85:15.
+The dataset consists predominantly of posts and comments from a right-wing extremist movement from 12/12/2014 to 07/07/2016. A total of 20,539 tweets were annotated for violence detection, divided into training and test data using stratified sampling at a ratio of 80:20.
 
-The **training data** comprises 8,908 tweets and is provided as a CSV file. An entry has the following format:
+The **training data** comprises 16,431 tweets and is provided as a CSV file. An entry has the following format:
 
 ```
 "id";"description";"vio"
 "1064396393598783";"Oliver, ich guck doch schon mindestens einmal die Woche RTL2-NEWS.";"nothing"
 ```
 
-The **test dataset** contains 3,861 tweets and is also distributed as a CSV file, containing an ID and the tweet text:
+The **test dataset** contains 4,108 tweets and is also distributed as a CSV file, containing an ID and the tweet text:
 
 ```
 "id";"description"
@@ -56,4 +56,4 @@ No further preprocessing steps were performed on the data.
 | File | Description |
 |---|---|
 | `vio_trial.csv` | Sample of the training dataset (~1,000 tweets), available since the trial phase to familiarise yourself with the data. |
-| `vio_train_26.csv` | Complete training dataset comprising 15,441 tweets. |
+| `vio_train_26.csv` | Complete training dataset comprising 16,431 tweets. |

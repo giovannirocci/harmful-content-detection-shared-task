@@ -8,11 +8,11 @@ The dataset contains all tweets for which a majority of the three to four annota
 
 ## Origin and Structure of the Data
 
-The **training data** for GermEval 2026 has been expanded to 15,915 tweets. The dataset consists of posts and comments from a right-wing extremist movement from 12/12/2014 to 07/07/2016. The dataset is provided as a CSV file that includes the ID, text, and call-to-action label. Each entry has the following format:
+The **training data** for GermEval 2026 has been expanded to 15,829 tweets. The dataset consists of posts and comments from a right-wing extremist movement from 12/12/2014 to 07/07/2016. The dataset is provided as a CSV file that includes the ID, text, and call-to-action label. Each entry has the following format:
 
 ```
 "id";"description";"c2a";
-"1064396393598783";"Oliver, ich guck doch schon mindestens einmal die Woche RTL2-NEWS.";"false";
+"1064396393598783";"Oliver, ich guck doch schon mindestens einmal die Woche RTL2-NEWS.";FALSE;
 ```
 
 The **test dataset** contains 2,982 tweets. It is identical to the GermEval 2025 test set to allow direct comparability between editions. The test data is also distributed as a CSV file, containing an ID and the tweet text:
@@ -45,4 +45,4 @@ No further preprocessing steps were performed on the data.
 | File | Description |
 |---|---|
 | `c2a_trial.csv` | Sample of the training dataset (~1,000 tweets), available since the trial phase to familiarise yourself with the data. |
-| `c2a_train_26.csv` | Complete training dataset comprising 15,915 tweets. |
+| `c2a_train_26.csv` | Complete training dataset comprising 15,829 tweets. |
