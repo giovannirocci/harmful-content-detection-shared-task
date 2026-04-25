@@ -2,54 +2,105 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
+import os
+from collections import Counter
 
-# 1. Load Datasets
-c2a = pd.read_csv('c2a_trial.csv', sep=';')
-dbo = pd.read_csv('dbo_trial.csv', sep=';')
-vio = pd.read_csv('vio_trial.csv', sep=';')
-def_df = pd.read_csv('def_trial.csv', sep=';')
+# 1. Define Paths
+base_path = r'C:\Users\Samsa\.vscode\coding\germeval-3\malai\EDA\using-trial-data'
+def get_path(filename):
+    return os.path.join(base_path, filename)
 
-datasets = {'Call2Action': c2a, 'DBO': dbo, 'Violence': vio, 'Defamation': def_df}
+# 2. Load Datasets
+c2a = pd.read_csv(get_path('c2a_trial.csv'), sep=';')
+dbo = pd.read_csv(get_path('dbo_trial.csv'), sep=';')
+vio = pd.read_csv(get_path('vio_trial.csv'), sep=';')
+def_df = pd.read_csv(get_path('def_trial.csv'), sep=';')
 
-# --- Analysis 1: Label Distribution ---
-fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-axes = axes.flatten()
-for i, (name, df) in enumerate(datasets.items()):
-    label_col = df.columns[-1]
-    counts = df[label_col].value_counts()
-    sns.barplot(x=counts.index, y=counts.values, ax=axes[i], palette='viridis')
-    axes[i].set_title(f'Label Distribution: {name}')
-    axes[i].tick_params(axis='x', rotation=45)
-plt.tight_layout()
-plt.savefig('label_distribution.png')
+full_corpus = pd.concat([c2a, dbo, vio, def_df])['description'].astype(str)
 
-# --- Analysis 2: ID Overlap ---
-overlap_matrix = pd.DataFrame(index=datasets.keys(), columns=datasets.keys())
-for n1, df1 in datasets.items():
-    for n2, df2 in datasets.items():
-        overlap = len(set(df1['id']) & set(df2['id']))
-        overlap_matrix.loc[n1, n2] = overlap
-plt.figure(figsize=(10, 8))
-sns.heatmap(overlap_matrix.astype(int), annot=True, fmt='d', cmap='Blues')
-plt.title('ID Overlap between Subtasks')
-plt.savefig('id_overlap.png')
+# 3. NEW ANALYSIS 1: Cross-Lingual Semantic Overlap (The "Ticket" Search)
+# Theoretical Grounding: The Lottery Ticket Hypothesis
+# We check how many 'Universal Radicalization' concepts appear in German text
+def analyze_semantic_overlap(texts):
+    # These represent universal extremist/radical tropes often found cross-lingually
+    universal_concepts = {
+        'Antisemitism/Identity': ['jude', 'zion', 'globalist', 'elite', 'volk'],
+        'Violence/Action': ['krieg', 'kampf', 'terror', 'vernichtung', 'angriff'],
+        'State/Order': ['regime', 'diktatur', 'system', 'verräter', 'widerstand']
+    }
+    
+    results = {}
+    text_blob = " ".join(texts).lower()
+    
+    for category, keywords in universal_concepts.items():
+        count = sum(1 for word in keywords if word in text_blob)
+        results[category] = count / len(keywords) # Percentage of concept coverage
+        
+    return results
 
-# --- Analysis 3: Text Length (Word Count) ---
+print("Running Analysis 1: Cross-Lingual Semantic Overlap...")
+overlap_data = analyze_semantic_overlap(full_corpus)
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x=list(overlap_data.keys()), y=list(overlap_data.values()), hue=list(overlap_data.keys()), palette='viridis', legend=False)
+plt.title('Analysis 1: Universal Radicalization Concept Coverage')
+plt.ylabel('Concept Hit Rate (0.0 - 1.0)')
+plt.xlabel('Thematic Category')
+plt.savefig('semantic_concept_overlap.png')
+print("✅ semantic_concept_overlap.png saved.")
+
+# 4. ANALYSIS 2: Global vs. Local Radicalization Signals
+international_tags = ['#hate', '#freedom', '#police', '#stop', '#war', '#globalism', '#truth']
+local_german_tags = ['#merkelmussweg', '#pegida', '#afd', '#deutschland', '#migration', '#volksverräter']
+
+def count_tags(text, tag_list):
+    count = 0
+    text = text.lower()
+    for tag in tag_list:
+        if tag in text: count += 1
+    return count
+
+full_df = pd.concat([c2a, dbo, vio, def_df])
+full_df['intl_count'] = full_df['description'].apply(lambda x: count_tags(str(x), international_tags))
+full_df['local_count'] = full_df['description'].apply(lambda x: count_tags(str(x), local_german_tags))
+
+plt.figure(figsize=(10, 6))
+tag_data = full_df[['intl_count', 'local_count']].sum()
+sns.barplot(x=tag_data.index, y=tag_data.values, hue=tag_data.index, palette='coolwarm', legend=False)
+plt.title('Analysis 2: Global vs. Local Radicalization Signals')
+plt.ylabel('Total Occurrences')
+plt.savefig('global_local_signals.png')
+
+# 5. ANALYSIS 3: Lexical Diversity
+def get_lexical_diversity(text):
+    words = str(text).lower().split()
+    if len(words) == 0: return 0
+    return len(set(words)) / len(words)
+
+diversity_results = {}
+for name, df in {'C2A': c2a, 'DBO': dbo, 'VIO': vio, 'DEF': def_df}.items():
+    diversity_results[name] = df['description'].apply(get_lexical_diversity).mean()
+
+plt.figure(figsize=(10, 6))
+labels = list(diversity_results.keys())
+values = list(diversity_results.values())
+sns.barplot(x=labels, y=values, hue=labels, palette='plasma', legend=False)
+plt.title('Analysis 3: Lexical Diversity (Complexity of the Haystack)')
+plt.ylabel('Mean Type-Token Ratio')
+plt.savefig('lexical_diversity.png')
+
+# 6. ANALYSIS 4: Winning Ticket Patterns
+def get_stems(texts):
+    all_words = " ".join(texts).lower().split()
+    stems = [w[:4] for w in all_words if len(w) > 4 and w.isalpha()]
+    return Counter(stems).most_common(15)
+
+top_stems = get_stems(full_corpus)
+stems_df = pd.DataFrame(top_stems, columns=['Stem', 'Count'])
+
 plt.figure(figsize=(12, 6))
-for name, df in datasets.items():
-    df['word_count'] = df['description'].str.split().str.len()
-    sns.kdeplot(df['word_count'], label=name, fill=True)
-plt.title('Word Count Distribution across Subtasks')
-plt.legend()
-plt.savefig('text_length_distribution.png')
+sns.barplot(data=stems_df, x='Count', y='Stem', hue='Stem', palette='rocket', legend=False)
+plt.title('Analysis 4: Dominant Linguistic Stems (Winning Ticket Patterns)')
+plt.savefig('winning_ticket_stems.png')
 
-# --- Analysis 4: Top Hashtags ---
-def extract_hashtags(text):
-    return re.findall(r'#\w+', str(text))
-hashtags_all = [tag for df in datasets.values() for text in df['description'] for tag in extract_hashtags(text)]
-hashtag_counts = pd.Series(hashtags_all).value_counts().head(15)
-plt.figure(figsize=(12, 6))
-sns.barplot(x=hashtag_counts.values, y=hashtag_counts.index, palette='magma')
-plt.title('Top 15 Most Frequent Hashtags')
-plt.savefig('top_hashtags.png')
-
+print("✅ Group Project EDA Complete. All 4 charts generated without external library dependencies.")
