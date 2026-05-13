@@ -22,8 +22,8 @@ def augment_positive_samples(input_file, output_file):
             augmented_text = aug.augment(row[text_col])
             augmented_rows.append({
                 'id': f"{row['id']}_aug",
-                text_col: augmented_text,
-                label_col: True
+                text_col: augmented_text.pop() if isinstance(augmented_text, list) else augmented_text,
+                label_col: "TRUE"
             })
     augmented_df = pd.DataFrame(augmented_rows)
     augmented_df.to_csv(output_file, sep=';', index=False)
