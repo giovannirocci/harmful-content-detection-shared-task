@@ -24,9 +24,6 @@ The particularly challenging annotation of the fourth sub-task was carried out b
 
 The data sets for each subtask, and further explanations of the data, can be found in the repository's individual subdirectories.
 
-**In addition to the annotations required for this shared task, the data set was annotated for hate speech, toxicity, target and emotions to support
-the classification tasks** (e.g. in the sense of multi-task learning or as a feature). A data set containing the tweets of all subtasks with the additional annotations is provided in a separate subfolder.
-
 ## Take Part in the Shared Task
 
 To take part in this competition, please register [here](https://www.codabench.org/competitions/edit/14006/#/).
