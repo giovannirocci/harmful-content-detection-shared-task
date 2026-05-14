@@ -6,5 +6,5 @@ models/**
 !models/
 !models/**/
 !models/**/*.txt
-!models/**/*.json
+!models/**/best/*.json
 !models/**/*.md
