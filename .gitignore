@@ -2,4 +2,9 @@ __pycache__/
 .venv/
 .env
 *.pyc
-models/
+models/**
+!models/
+!models/**/
+!models/**/*.txt
+!models/**/*.json
+!models/**/*.md
