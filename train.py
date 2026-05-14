@@ -33,7 +33,7 @@ TASK_CONFIG = {
         "file": "GermEval2026/data/c2a/c2a_train_26.csv",
         "text_col": "description",
         "label_col": "c2a",
-        "labels": ["FALSE", "TRUE"],
+        "labels": [False, True],
     },
     "dbo": {
         "file": "GermEval2026/data/dbo/dbo_train_26.csv",
@@ -42,10 +42,10 @@ TASK_CONFIG = {
         "labels": ["nothing", "criticism", "agitation", "subversive"],
     },
     "def": {
-        "file": "GermEval2026/data/def/def_train.csv",
+        "file": "GermEval2026/data/def/def_train_renamed.csv",
         "text_col": "description",
         "label_col": "def",
-        "labels": ["FALSE", "TRUE"],
+        "labels": [False, True],
     },
     "vio": {
         "file": "GermEval2026/data/vio/vio_train_26.csv",
@@ -84,7 +84,7 @@ class WeightedLossTrainer(Trainer):
 
 # Dataset
 class TextClassificationDataset(Dataset):
-    def __init__(self, texts: list[str], labels: list[int], tokenizer, max_length: int = 128):
+    def __init__(self, texts: list[str], labels: list[int], tokenizer, max_length: int):
         self.encodings = tokenizer(
             texts,
             padding="max_length",
@@ -109,7 +109,7 @@ class TextClassificationDataset(Dataset):
 def load_data(task: str) -> tuple[list[str], list[int], list[str]]:
     """Load CSV, drop rows with missing labels, and encode labels as integers."""
     cfg = TASK_CONFIG[task]
-    df = pd.read_csv(cfg["file"], sep=";", quotechar='"')
+    df = pd.read_csv(cfg["file"], sep=";")
     df = df.dropna(subset=[cfg["text_col"], cfg["label_col"]])
     df = df[df[cfg["label_col"]].isin(cfg["labels"])]
 
@@ -136,11 +136,11 @@ def train(
     task: str,
     model_name: str = DEFAULT_MODEL,
     output_dir: str = "outputs",
-    max_length: int = 128,
     num_epochs: int = 4,
+    max_length: int = 256,
     batch_size: int = 16,
     learning_rate: float = 2e-5,
-    val_split: float = 0.15,
+    val_split: float = 0.2,
     seed: int = 42,
     cb_beta: float = 0.9999,
 ):
@@ -149,6 +149,7 @@ def train(
 
     # --- Data ---
     texts, labels, label_names = load_data(task)
+    label_names = [str(name) for name in label_names]
     train_texts, val_texts, train_labels, val_labels = train_test_split(
         texts, labels, test_size=val_split, random_state=seed, stratify=labels
     )
@@ -180,7 +181,7 @@ def train(
         per_device_eval_batch_size=batch_size,
         learning_rate=learning_rate,
         weight_decay=0.01,
-        warmup_ratio=0.1,
+        warmup_steps=0.1,
         eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
@@ -214,6 +215,20 @@ def train(
     tokenizer.save_pretrained(os.path.join(task_output_dir, "best"))
     print(f"Model saved to {task_output_dir}/best")
 
+    with open(os.path.join(task_output_dir, "train_results.txt"), "w") as f:
+        f.write("=== Training Summary ===\n")
+        f.write(f"Task: {task}\n")
+        f.write(f"Model: {model_name}\n")
+        f.write(f"Device: {device}\n")
+        f.write(f"Train size: {len(train_texts)}\n")
+        f.write(f"Val size: {len(val_texts)}\n")
+        f.write(f"Labels: {label_names}\n")
+        f.write(f"Label counts: {label_counts.tolist()}\n")
+        f.write(f"Class-balanced weights (beta={cb_beta}): {[round(w, 4) for w in class_weights.tolist()]}\n")
+        f.write("\n=== Evaluation on Validation Set ===\n")
+        f.write(classification_report(val_labels, preds, target_names=label_names, zero_division=0))
+    print(f"Training summary saved to {task_output_dir}/train_results.txt")
+
 
 
 # CLI
@@ -224,11 +239,11 @@ def parse_args():
     parser.add_argument("--model", default=DEFAULT_MODEL,
                         help="HuggingFace model name or local path")
     parser.add_argument("--output_dir", default="outputs")
-    parser.add_argument("--max_length", type=int, default=128)
     parser.add_argument("--epochs", type=int, default=4)
+    parser.add_argument("--max_length", type=int, default=256)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=2e-5)
-    parser.add_argument("--val_split", type=float, default=0.15)
+    parser.add_argument("--val_split", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cb_beta", type=float, default=0.9999,
                         help="Beta for Class-Balanced loss (Cui et al., 2019). Higher = stronger reweighting.")
@@ -241,11 +256,11 @@ if __name__ == "__main__":
         task=args.task,
         model_name=args.model,
         output_dir=args.output_dir,
-        max_length=args.max_length,
         num_epochs=args.epochs,
         batch_size=args.batch_size,
         learning_rate=args.lr,
         val_split=args.val_split,
         seed=args.seed,
         cb_beta=args.cb_beta,
+        max_length=args.max_length,
     )
