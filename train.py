@@ -30,25 +30,25 @@ from transformers import (
 # Config
 TASK_CONFIG = {
     "c2a": {
-        "file": "GermEval2026/data/c2a/c2a_trial.csv",
+        "file": "GermEval2026/data/c2a/c2a_train_26.csv",
         "text_col": "description",
         "label_col": "c2a",
         "labels": ["FALSE", "TRUE"],
     },
     "dbo": {
-        "file": "GermEval2026/data/dbo/dbo_trial.csv",
+        "file": "GermEval2026/data/dbo/dbo_train_26.csv",
         "text_col": "description",
         "label_col": "dbo",
         "labels": ["nothing", "criticism", "agitation", "subversive"],
     },
     "def": {
-        "file": "GermEval2026/data/def/def_trial.csv",
+        "file": "GermEval2026/data/def/def_train.csv",
         "text_col": "description",
         "label_col": "def",
         "labels": ["FALSE", "TRUE"],
     },
     "vio": {
-        "file": "GermEval2026/data/vio/vio_trial.csv",
+        "file": "GermEval2026/data/vio/vio_train_26.csv",
         "text_col": "description",
         "label_col": "vio",
         "labels": ["nothing", "propensity", "call2violence", "support", "glorification", "other"],
@@ -56,6 +56,30 @@ TASK_CONFIG = {
 }
 
 DEFAULT_MODEL = "cardiffnlp/twitter-xlm-roberta-base"
+
+
+# Class-Balanced loss (Cui et al., 2019)
+def get_cb_weights(labels_count, beta: float = 0.9999) -> torch.Tensor:
+    """Effective Number of Samples weighting to mitigate class imbalance."""
+    labels_count = np.asarray(labels_count, dtype=np.float64)
+    effective_num = 1.0 - np.power(beta, labels_count)
+    weights = (1.0 - beta) / np.where(effective_num > 0, effective_num, 1.0)
+    weights = weights / np.sum(weights) * len(labels_count)
+    return torch.tensor(weights, dtype=torch.float)
+
+
+class WeightedLossTrainer(Trainer):
+    def __init__(self, *args, class_weights: torch.Tensor | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.class_weights = class_weights
+
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits
+        weight = self.class_weights.to(logits.device) if self.class_weights is not None else None
+        loss = torch.nn.functional.cross_entropy(logits, labels, weight=weight)
+        return (loss, outputs) if return_outputs else loss
 
 
 # Dataset
@@ -113,11 +137,12 @@ def train(
     model_name: str = DEFAULT_MODEL,
     output_dir: str = "outputs",
     max_length: int = 128,
-    num_epochs: int = 5,
+    num_epochs: int = 4,
     batch_size: int = 16,
     learning_rate: float = 2e-5,
     val_split: float = 0.15,
     seed: int = 42,
+    cb_beta: float = 0.9999,
 ):
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(f"\n=== Task: {task} | Model: {model_name} | Device: {device} ===")
@@ -141,6 +166,11 @@ def train(
     train_dataset = TextClassificationDataset(train_texts, train_labels, tokenizer, max_length)
     val_dataset = TextClassificationDataset(val_texts, val_labels, tokenizer, max_length)
 
+    # --- Class-balanced weights from train split ---
+    label_counts = np.bincount(train_labels, minlength=len(label_names))
+    class_weights = get_cb_weights(label_counts, beta=cb_beta)
+    print(f"Label counts: {label_counts.tolist()} | CB weights: {[round(w, 4) for w in class_weights.tolist()]}")
+
     # --- Training args ---
     task_output_dir = os.path.join(output_dir, task)
     training_args = TrainingArguments(
@@ -160,13 +190,14 @@ def train(
         seed=seed,
     )
 
-    trainer = Trainer(
+    trainer = WeightedLossTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         compute_metrics=make_compute_metrics(label_names),
         callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
+        class_weights=class_weights,
     )
 
     # --- Train ---
@@ -194,11 +225,13 @@ def parse_args():
                         help="HuggingFace model name or local path")
     parser.add_argument("--output_dir", default="outputs")
     parser.add_argument("--max_length", type=int, default=128)
-    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--val_split", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--cb_beta", type=float, default=0.9999,
+                        help="Beta for Class-Balanced loss (Cui et al., 2019). Higher = stronger reweighting.")
     return parser.parse_args()
 
 
@@ -214,4 +247,5 @@ if __name__ == "__main__":
         learning_rate=args.lr,
         val_split=args.val_split,
         seed=args.seed,
+        cb_beta=args.cb_beta,
     )
