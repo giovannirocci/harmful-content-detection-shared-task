@@ -45,4 +45,5 @@ No further preprocessing steps were performed on the data.
 | File | Description |
 |---|---|
 | `def_trial.csv` | Sample of the training dataset (~100 tweets), available since the trial phase to familiarise yourself with the data. |
-| `def_train.csv` | Complete training dataset comprising 3,263  tweets. |
+| `def_train.csv` | Complete training dataset comprising 3,263 tweets. |
+| `def_test.csv` | Complete training dataset comprising 577 tweets. |
