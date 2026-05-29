@@ -15,7 +15,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DATA_PATH = "../EDA/using-trial-data/"
 
 # The committee consists of a Multilingual Generalist and a Monolingual Specialist
-MODELS = ["FacebookAI/xlm-roberta-base", "google-bert/bert-base-german-cased"]
+MODELS = ["cardiffnlp/twitter-xlm-roberta-base", "LSX-UniWue/ModernGBERT_134M"]
 
 # Path adjustment for modular access to models and baseline utilities
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
