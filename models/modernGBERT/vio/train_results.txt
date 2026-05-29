@@ -1,0 +1,23 @@
+=== Training Summary ===
+Task: vio
+Model: LSX-UniWue/ModernGBERT_134M
+Device: cuda
+Train size: 13966
+Val size: 2465
+Labels: ['nothing', 'prospensity', 'call2violence', 'support', 'glorification', 'other']
+Label counts: [13516, 63, 167, 87, 23, 110]
+Class-balanced weights (beta=0.9999): [0.0094, 1.1069, 0.4198, 0.8025, 3.026, 0.6355]
+
+=== Evaluation on Validation Set ===
+               precision    recall  f1-score   support
+
+      nothing       0.98      1.00      0.99      2385
+  prospensity       0.50      0.09      0.15        11
+call2violence       0.82      0.47      0.60        30
+      support       0.50      0.07      0.12        15
+glorification       0.00      0.00      0.00         4
+        other       0.33      0.10      0.15        20
+
+     accuracy                           0.97      2465
+    macro avg       0.52      0.29      0.33      2465
+ weighted avg       0.96      0.97      0.97      2465
