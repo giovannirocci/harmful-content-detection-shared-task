@@ -1,0 +1,14 @@
+Task: c2a
+Models: modernGBERT, xlm-roberta-twitter
+Device: cuda
+Validation Size: 3166
+Classification Report:
+              precision    recall  f1-score   support
+
+       False       0.97      0.98      0.98      2879
+        True       0.82      0.72      0.77       287
+
+    accuracy                           0.96      3166
+   macro avg       0.90      0.85      0.87      3166
+weighted avg       0.96      0.96      0.96      3166
+
