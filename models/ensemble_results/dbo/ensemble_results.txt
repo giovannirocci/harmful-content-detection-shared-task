@@ -1,0 +1,16 @@
+Task: dbo
+Models: modernGBERT, xlm-roberta-twitter
+Device: cuda
+Validation Size: 3171
+Classification Report:
+              precision    recall  f1-score   support
+
+     nothing       0.96      0.96      0.96      2764
+   criticism       0.69      0.70      0.69       368
+   agitation       0.75      0.52      0.61        29
+  subversive       0.17      0.10      0.12        10
+
+    accuracy                           0.92      3171
+   macro avg       0.64      0.57      0.60      3171
+weighted avg       0.92      0.92      0.92      3171
+
