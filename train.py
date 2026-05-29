@@ -51,7 +51,7 @@ TASK_CONFIG = {
         "file": "GermEval2026/data/vio/vio_train_26.csv",
         "text_col": "description",
         "label_col": "vio",
-        "labels": ["nothing", "propensity", "call2violence", "support", "glorification", "other"],
+        "labels": ["nothing", "prospensity", "call2violence", "support", "glorification", "other"],
     },
 }
 
@@ -77,7 +77,12 @@ class WeightedLossTrainer(Trainer):
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
-        weight = self.class_weights.to(logits.device) if self.class_weights is not None else None
+        # Keep weight tensor aligned with logits precision/device for mixed precision training.
+        weight = (
+            self.class_weights.to(device=logits.device, dtype=logits.dtype)
+            if self.class_weights is not None
+            else None
+        )
         loss = torch.nn.functional.cross_entropy(logits, labels, weight=weight)
         return (loss, outputs) if return_outputs else loss
 
@@ -143,6 +148,7 @@ def train(
     val_split: float = 0.2,
     seed: int = 42,
     cb_beta: float = 0.9999,
+    bfloat: bool = False,
 ):
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(f"\n=== Task: {task} | Model: {model_name} | Device: {device} ===")
@@ -179,6 +185,7 @@ def train(
         num_train_epochs=num_epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
+        bf16=bfloat,
         learning_rate=learning_rate,
         weight_decay=0.01,
         warmup_steps=0.1,
@@ -247,6 +254,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cb_beta", type=float, default=0.9999,
                         help="Beta for Class-Balanced loss (Cui et al., 2019). Higher = stronger reweighting.")
+    parser.add_argument("--bfloat", action="store_true", help="Use mixed precision training (if supported by hardware).")
     return parser.parse_args()
 
 
@@ -263,4 +271,5 @@ if __name__ == "__main__":
         seed=args.seed,
         cb_beta=args.cb_beta,
         max_length=args.max_length,
+        bfloat=args.bfloat
     )
