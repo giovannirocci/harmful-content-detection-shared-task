@@ -11,7 +11,7 @@ The dataset contains all tweets for which a majority of the three annotators dec
 The **training data** for this pilot subtask contains 3,263 tweets. The main source of the dataset consists of posts and comments from a right-wing extremist movement from 12/12/2014 to 07/07/2016. The training data is provided as a CSV file. An entry has the following format:
 
 ```
-"id";"description";"def"
+"id";"description";"DEF"
 "1064396393598783";"Oliver, ich guck doch schon mindestens einmal die Woche RTL2-NEWS.";"FALSE"
 ```
 
@@ -45,4 +45,5 @@ No further preprocessing steps were performed on the data.
 | File | Description |
 |---|---|
 | `def_trial.csv` | Sample of the training dataset (~100 tweets), available since the trial phase to familiarise yourself with the data. |
-| `def_train.csv` | Complete training dataset comprising 3,263  tweets. |
+| `def_train.csv` | Complete training dataset comprising 3,263 tweets. |
+| `def_test.csv` | Complete training dataset comprising 577 tweets. |
