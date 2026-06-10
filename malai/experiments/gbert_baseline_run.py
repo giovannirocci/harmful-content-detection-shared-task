@@ -1,22 +1,48 @@
 import sys
 import os
 import torch
+
+# --- 1. APPTAINER / CLUSTER ENVIRONMENT HOTFIX & HARD FORCED SAFETENSORS ---
+# Force the entire transformers ecosystem to completely ignore legacy bin endpoints globally
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+
+# Patches missing float8 type attributes inside the Apptainer container space
+if not hasattr(torch, "float8_e8m0fnu"):
+    setattr(torch, "float8_e8m0fnu", torch.float32)
+
+# MONKEY PATCH: Intercept torch.load to force weights_only tracking or bypass low container version restrictions
+original_torch_load = torch.load
+def secured_torch_load(*args, **kwargs):
+    if 'weights_only' not in kwargs and torch.__version__ < "2.6":
+        kwargs['weights_only'] = True
+    try:
+        return original_torch_load(*args, **kwargs)
+    except ValueError as e:
+        if "upgrade torch to at least v2.6" in str(e):
+            raise ImportError("Fallback to safetensors requested via mock gating")
+        raise e
+torch.load = secured_torch_load
+
 import pandas as pd
 import numpy as np
+import torch.nn as nn
 from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel
 from torch.optim import AdamW
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, classification_report
 
-# Standardize initialization for reproducibility across baseline comparisons
+# --- 2. FIREWALL CONFIGURATION ---
 SEED = 1337
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 
-MODEL_ID = "google-bert/bert-base-german-cased" 
+MODEL_ID = "LSX-UniWue/ModernGBERT_134M"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# MAINTAINED: Reverted data paths back to your local environment file structures
 DATA_PATH = "../EDA/using-trial-data/"
 MAX_TOKENS = 128
 BATCH_SIZE = 24  
@@ -27,6 +53,7 @@ LR_RATE = 2e-5
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.TicketClassifier import TicketClassifier
 
+# --- 3. DATASET ABSTRACTION ---
 class TicketDataset(Dataset):
     """
     Standard multi-task dataset loader for German political discourse analysis.
@@ -65,12 +92,14 @@ class TicketDataset(Dataset):
             'targets': target_dict
         }
 
+# --- 4. EXECUTION ENGINE (WITH INTEGRATED FP16 ENGINE) ---
 def execute_gbert_baseline():
     """
     Executes training and evaluation for the monolingual GBERT baseline.
     """
     print("-" * 60)
     print(f"Linguistic Benchmark: {MODEL_ID}")
+    print("Integrating Native Mixed-Precision Engine & Localized Datasets")
     print("-" * 60)
     
     tasks = ['c2a', 'dbo', 'vio', 'def']
@@ -82,14 +111,32 @@ def execute_gbert_baseline():
     master['description'] = master['description'].fillna("Empty")
     train_set, val_set = train_test_split(master, test_size=0.15, random_state=SEED)
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, use_fast=False)
-    model = TicketClassifier(MODEL_ID).to(DEVICE)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+    
+    # Pre-fetching clean safetensors structure explicitly
+    print("Pre-fetching clean safetensors structure...")
+    AutoModel.from_pretrained(MODEL_ID, use_safetensors=True)
+    
+    # MONKEY PATCH: Intercept the from_pretrained layer of AutoModel before building TicketClassifier
+    original_from_pretrained = AutoModel.from_pretrained
+    AutoModel.from_pretrained = lambda pretrained_model_name_or_path, *args, **kwargs: original_from_pretrained(
+        pretrained_model_name_or_path, *args, **{**kwargs, "use_safetensors": True}
+    )
+    
+    try:
+        model = TicketClassifier(MODEL_ID).to(DEVICE)
+    finally:
+        # Restore original functionality to maintain framework integrity downstream
+        AutoModel.from_pretrained = original_from_pretrained
     
     train_loader = DataLoader(TicketDataset(train_set, tokenizer, MAX_TOKENS), batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(TicketDataset(val_set, tokenizer, MAX_TOKENS), batch_size=BATCH_SIZE, shuffle=False)
     
     optimizer = AdamW(model.parameters(), lr=LR_RATE)
     criterion = {t: torch.nn.CrossEntropyLoss() for t in tasks}
+
+    # Native PyTorch Gradient Scaler for FP16 Mixed Precision
+    scaler = torch.cuda.amp.GradScaler()
 
     for epoch in range(EPOCHS):
         model.train()
@@ -101,14 +148,20 @@ def execute_gbert_baseline():
             ids = batch['input_ids'].to(DEVICE)
             mask = batch['attn_mask'].to(DEVICE)
             
-            preds = model(ids, mask)
-            batch_loss = sum([criterion[t](preds[t], batch['targets'][t].to(DEVICE)) for t in tasks])
+            # Autocast forward operations to FP16 half-precision context
+            with torch.cuda.amp.autocast():
+                preds = model(ids, mask)
+                batch_loss = sum([criterion[t](preds[t], batch['targets'][t].to(DEVICE)) for t in tasks])
             
-            batch_loss.backward()
-            optimizer.step()
+            # Scaler backpropagation sequence
+            scaler.scale(batch_loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            
             train_loss += batch_loss.item()
             pbar.set_postfix({'loss': train_loss / (pbar.n + 1)})
 
+        # Validation Step
         model.eval()
         val_store = {t: {'preds': [], 'labels': []} for t in tasks}
         
@@ -132,12 +185,13 @@ def execute_gbert_baseline():
         print(classification_report(val_store[t]['labels'], val_store[t]['preds'], zero_division=0))
         summary_f1[t] = f1_score(val_store[t]['labels'], val_store[t]['preds'], average='macro')
     
+    # Save Results for History Tracking
+    model_slug = MODEL_ID.split('/')[-1]
     pd.DataFrame([summary_f1], index=[MODEL_ID]).to_csv("gbert_baseline_results.csv")
     
     # Saving model weights for the Ensemble Phase
-    model_slug = MODEL_ID.split('/')[-1]
     torch.save(model.state_dict(), f"best_ticket_model_{model_slug}.bin")
-    print(f"\nOptimization cycle complete for {MODEL_ID}.")
+    print(f"\n✅ Optimization cycle complete for {MODEL_ID}. Weights generated: best_ticket_model_{model_slug}.bin")
 
 if __name__ == "__main__":
     execute_gbert_baseline()
