@@ -1,6 +1,12 @@
 import sys
 import os
+
+# --- 1. CLUSTER ENVIRONMENT HOTFIX ---
+# Patches missing float8 type attributes introduced by bleeding-edge transformers library updates
 import torch
+if not hasattr(torch, "float8_e8m0fnu"):
+    setattr(torch, "float8_e8m0fnu", torch.float32)
+
 import pandas as pd
 import numpy as np
 import torch.nn as nn
@@ -11,13 +17,16 @@ from torch.optim import AdamW
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, classification_report
 
-# --- 1. FIREWALL CONFIGURATION ---
+# --- 2. FIREWALL CONFIGURATION ---
 SEED = 1337
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 
+# MAINTAINED: DistilBERT target configuration for the efficiency task
 MODEL_ID = "distilbert-base-multilingual-cased"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# MAINTAINED: Your original data path structure (You can swap the raw data content manually)
 DATA_PATH = "../EDA/using-trial-data/"
 MAX_TOKENS = 128
 BATCH_SIZE = 24  
@@ -28,7 +37,7 @@ LR_RATE = 3e-5
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.TicketClassifier import TicketClassifier
 
-# --- 2. DATASET ABSTRACTION ---
+# --- 3. DATASET ABSTRACTION ---
 class TicketDataset(Dataset):
     def __init__(self, dataframe, tokenizer, max_len):
         self.data = dataframe
@@ -64,14 +73,14 @@ class TicketDataset(Dataset):
             'targets': target_dict
         }
 
-# --- 3. EXECUTION ENGINE ---
+# --- 4. EXECUTION ENGINE (WITH NATIVE INTEGRATED FP16 ENGINE) ---
 def execute_distilbert_study():
     print(f"\n{'#'*60}")
-    print(f"EXPERIMENT A: Multilingual DistilBERT Initialization")
-    print(f"Searching for 'Winning Tickets' in a Light Multilingual Space")
+    print(f"EXPERIMENT A: Multilingual DistilBERT Engine Initialization")
+    print(f"Running Native FP16 Mixed-Precision Optimization over: {MODEL_ID}")
     print(f"{'#'*60}")
     
-    # Data Aggregation
+    # Data Aggregation pointing back to original paths
     tasks = ['c2a', 'dbo', 'vio', 'def']
     raw_dfs = {t: pd.read_csv(os.path.join(DATA_PATH, f"{t}_trial.csv"), sep=';') for t in tasks}
     master = raw_dfs['c2a']
@@ -81,8 +90,6 @@ def execute_distilbert_study():
     master['description'] = master['description'].fillna("Empty")
     train_set, val_set = train_test_split(master, test_size=0.15, random_state=SEED)
 
-    # Standard Cross-Entropy for the Benchmark Phase
-    # Note: Experiment B will introduce Class-Balanced (CB) weights
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     model = TicketClassifier(MODEL_ID).to(DEVICE)
     
@@ -91,6 +98,9 @@ def execute_distilbert_study():
     
     optimizer = AdamW(model.parameters(), lr=LR_RATE)
     criterion = {t: nn.CrossEntropyLoss() for t in tasks}
+
+    # Native PyTorch Gradient Scaler for FP16 Mixed Precision
+    scaler = torch.cuda.amp.GradScaler()
 
     for epoch in range(EPOCHS):
         model.train()
@@ -102,13 +112,16 @@ def execute_distilbert_study():
             ids = batch['input_ids'].to(DEVICE)
             mask = batch['attn_mask'].to(DEVICE)
             
-            preds = model(ids, mask)
+            # Autocast forward operations to FP16 half-precision context
+            with torch.cuda.amp.autocast():
+                preds = model(ids, mask)
+                batch_loss = sum([criterion[t](preds[t], batch['targets'][t].to(DEVICE)) for t in tasks])
             
-            # Summed Multi-Task Loss
-            batch_loss = sum([criterion[t](preds[t], batch['targets'][t].to(DEVICE)) for t in tasks])
+            # Scaler backpropagation sequence
+            scaler.scale(batch_loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             
-            batch_loss.backward()
-            optimizer.step()
             train_loss += batch_loss.item()
             pbar.set_postfix({'loss': train_loss / (pbar.n + 1)})
 
@@ -137,8 +150,10 @@ def execute_distilbert_study():
         summary_f1[t] = f1_score(val_store[t]['labels'], val_store[t]['preds'], average='macro')
     
     # Save Results for History Tracking
-    pd.DataFrame([summary_f1], index=[MODEL_ID]).to_csv("distilbert_baseline_results.csv")
-    print(f"\n✅ Experiment A (DistilBERT) Results Saved.")
+    model_slug = MODEL_ID.split('/')[-1]
+    pd.DataFrame([summary_f1], index=[MODEL_ID]).to_csv(f"{model_slug}_optimized_baseline_results.csv")
+    torch.save(model.state_dict(), f"best_ticket_model_{model_slug}.bin")
+    print(f"\n✅ Experiment A ({model_slug}) Optimized Baseline Complete and Weights Saved.")
 
 if __name__ == "__main__":
     execute_distilbert_study()
