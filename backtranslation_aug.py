@@ -16,14 +16,16 @@ def augment_positive_samples(input_file, output_file):
         to_model_name='Helsinki-NLP/opus-mt-en-de'
     )
 
+    negatives = [False, 'nothing']
+
     augmented_rows = []
     for _, row in tqdm(df.iterrows(), total=len(df)):
-        if row[label_col] == True:  # Only augment positive samples
+        if row[label_col] and row[label_col] not in negatives:  # Only augment positive samples
             augmented_text = aug.augment(row[text_col])
             augmented_rows.append({
                 'id': f"{row['id']}_aug",
                 text_col: augmented_text.pop() if isinstance(augmented_text, list) else augmented_text,
-                label_col: "TRUE"
+                label_col: "TRUE" if row[label_col] == True else row[label_col]
             })
     augmented_df = pd.DataFrame(augmented_rows)
     augmented_df.to_csv(output_file, sep=';', index=False)

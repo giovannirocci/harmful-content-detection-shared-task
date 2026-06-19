@@ -37,7 +37,7 @@ def augment_samples(input_file, output_file):
         augmented_rows.append({
             'id': f"{row['id']}_aug",
             text_col: augmented_text,
-            label_col: row[label_col]
+            label_col: "TRUE" if row[label_col] == True else row[label_col]
         })
     augmented_df = pd.DataFrame(augmented_rows)
     augmented_df.to_csv(output_file, sep=';', index=False)
