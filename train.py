@@ -31,24 +31,28 @@ from transformers import (
 TASK_CONFIG = {
     "c2a": {
         "file": "GermEval2026/data/c2a/c2a_train_26.csv",
+        "test": "GermEval2026/data/c2a/c2a_test_26.csv",
         "text_col": "description",
         "label_col": "c2a",
         "labels": [False, True],
     },
     "dbo": {
         "file": "GermEval2026/data/dbo/dbo_train_26.csv",
+        "test": "GermEval2026/data/dbo/dbo_test_26.csv",
         "text_col": "description",
         "label_col": "dbo",
         "labels": ["nothing", "criticism", "agitation", "subversive"],
     },
     "def": {
         "file": "GermEval2026/data/def/def_train_renamed.csv",
+        "test": "GermEval2026/data/def/def_test.csv",
         "text_col": "description",
         "label_col": "def",
         "labels": [False, True],
     },
     "vio": {
         "file": "GermEval2026/data/vio/vio_train_26.csv",
+        "test": "GermEval2026/data/vio/vio_test_26.csv",
         "text_col": "description",
         "label_col": "vio",
         "labels": ["nothing", "prospensity", "call2violence", "support", "glorification", "other"],
@@ -114,6 +118,7 @@ class TextClassificationDataset(Dataset):
 def load_data(task: str) -> tuple[list[str], list[int], list[str]]:
     """Load CSV, drop rows with missing labels, and encode labels as integers."""
     cfg = TASK_CONFIG[task]
+    
     df = pd.read_csv(cfg["file"], sep=";")
     df = df.dropna(subset=[cfg["text_col"], cfg["label_col"]])
     df = df[df[cfg["label_col"]].isin(cfg["labels"])]
@@ -121,8 +126,23 @@ def load_data(task: str) -> tuple[list[str], list[int], list[str]]:
     label2id = {lbl: i for i, lbl in enumerate(cfg["labels"])}
     texts = df[cfg["text_col"]].tolist()
     labels = df[cfg["label_col"]].map(label2id).tolist()
+
     return texts, labels, cfg["labels"]
 
+
+def load_augmented_data(augment_file: str, task: str) -> tuple[list[str], list[int]]:
+    """Load augmented CSV and encode labels as integers."""
+    cfg = TASK_CONFIG[task]
+    
+    df = pd.read_csv(augment_file, sep=";")
+    df = df.dropna(subset=[cfg["text_col"], cfg["label_col"]])
+    df = df[df[cfg["label_col"]].isin(cfg["labels"])]
+
+    label2id = {lbl: i for i, lbl in enumerate(cfg["labels"])}
+    texts = df[cfg["text_col"]].tolist()
+    labels = df[cfg["label_col"]].map(label2id).tolist()
+
+    return texts, labels
 
 
 # Metrics
@@ -149,6 +169,7 @@ def train(
     seed: int = 42,
     cb_beta: float = 0.9999,
     bfloat: bool = False,
+    augment_file: str | None = None,
 ):
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(f"\n=== Task: {task} | Model: {model_name} | Device: {device} ===")
@@ -159,6 +180,31 @@ def train(
     train_texts, val_texts, train_labels, val_labels = train_test_split(
         texts, labels, test_size=val_split, random_state=seed, stratify=labels
     )
+
+    # --- Include augmented data if provided ---
+    if augment_file:
+        aug_texts, aug_labels = load_augmented_data(augment_file, task)
+
+        text_to_label = {}
+        n_conflicts = 0
+        for text, label in zip(train_texts + aug_texts, train_labels + aug_labels):
+            if text in text_to_label and text_to_label[text] != label:
+                n_conflicts += 1
+                continue  # keep the first-seen label (original data wins over augmented)
+            text_to_label.setdefault(text, label)
+
+        train_texts = list(text_to_label.keys())
+        train_labels = list(text_to_label.values())
+
+        if n_conflicts:
+            print(f"WARNING: {n_conflicts} duplicate texts had conflicting labels "
+                  f"between original and augmented data; kept the first-seen label.")
+        print(f"Included {len(aug_texts)} augmented samples from {augment_file}")
+
+        # Sanity check: confirm label distribution still looks reasonable
+        merged_counts = np.bincount(train_labels, minlength=len(label_names))
+        print(f"Post-merge label counts: {dict(zip(label_names, merged_counts.tolist()))}")
+
     print(f"Train: {len(train_texts)} | Val: {len(val_texts)} | Labels: {label_names}")
 
     # --- Tokenizer & model ---
@@ -255,6 +301,8 @@ def parse_args():
     parser.add_argument("--cb_beta", type=float, default=0.9999,
                         help="Beta for Class-Balanced loss (Cui et al., 2019). Higher = stronger reweighting.")
     parser.add_argument("--bfloat", action="store_true", help="Use mixed precision training (if supported by hardware).")
+    parser.add_argument("--augment_file", type=str, default=None,
+                        help="Path to CSV file containing augmented data to include in training (optional).")
     return parser.parse_args()
 
 
@@ -271,5 +319,6 @@ if __name__ == "__main__":
         seed=args.seed,
         cb_beta=args.cb_beta,
         max_length=args.max_length,
-        bfloat=args.bfloat
+        bfloat=args.bfloat,
+        augment_file=args.augment_file
     )
