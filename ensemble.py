@@ -18,7 +18,8 @@ def main(model_paths,
          val_split=0.2,
          max_length=256, 
          seed=42,
-         output_dir="models/ensemble_results"):
+         output_dir="models/ensemble_results",
+         test_mode=False):
     
     task_name = model_paths[0].split("/")[2]
     print(f"Loading models for task: {task_name}")
@@ -29,11 +30,20 @@ def main(model_paths,
     models = {name: AutoModelForSequenceClassification.from_pretrained(path) for name, path in zip(names, model_paths)}
     tokenizers = {name: AutoTokenizer.from_pretrained(path) for name, path in zip(names, model_paths)}
 
-    texts, labels, label_names = load_data(task_name)
-    label_names = [str(name) for name in label_names]
-    _, val_texts, _, val_labels = train_test_split(
-        texts, labels, test_size=val_split, random_state=seed, stratify=labels
-    )
+    if not test_mode:
+        texts, labels, label_names = load_data(task_name)
+        label_names = [str(name) for name in label_names]
+        _, val_texts, _, val_labels = train_test_split(
+            texts, labels, test_size=val_split, random_state=seed, stratify=labels
+        )
+    else:
+        test_file = TASK_CONFIG[task_name]['test']
+        df_test = pd.read_csv(test_file, sep=';')
+        text_col = TASK_CONFIG[task_name]['text_col']
+        val_texts = df_test[text_col].tolist()
+        val_labels = [0] * len(val_texts)  # Placeholder labels for test mode
+        label_names = [str(name) for name in TASK_CONFIG[task_name]['labels']]
+
     print(f"Val: {len(val_texts)} | Labels: {label_names}")
 
     all_preds = []
@@ -59,6 +69,18 @@ def main(model_paths,
     avg_probs = np.mean(all_preds, axis=0)
     pred_labels = np.argmax(avg_probs, axis=1)
 
+    if test_mode:
+        print("Test mode: No ground truth labels available for evaluation.")
+        with open(os.path.join(output_dir, f"{task_name}_test_predictions.csv"), "w") as f:
+            f.write(f"id;{task_name}\n")
+            for id, pred in zip(df_test['id'], pred_labels):
+                if label_names[pred] == "True":
+                    f.write(f"{id};TRUE\n")
+                elif label_names[pred] == "False":
+                    f.write(f"{id};FALSE\n")
+                else:
+                    f.write(f"{id};{label_names[pred]}\n")
+    
     print("Ensemble Classification Report:")
     print(classification_report(val_labels, pred_labels, target_names=label_names, zero_division=0))
 
@@ -79,6 +101,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_length", type=int, default=256, help="Maximum sequence length for tokenization")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--output_dir", type=str, default="models/ensemble_results", help="Directory to save ensemble results")
+    parser.add_argument("--test_mode", action="store_true", help="Run in test mode with GermEval2026 test data")
 
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
@@ -88,6 +111,7 @@ if __name__ == "__main__":
         val_split=args.val_split,
         max_length=args.max_length,
         seed=args.seed,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
+        test_mode=args.test_mode
     )
     
