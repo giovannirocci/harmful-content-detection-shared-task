@@ -8,3 +8,4 @@ models/**
 !models/**/*.txt
 !models/**/best/*.json
 !models/**/*.md
+_*/
