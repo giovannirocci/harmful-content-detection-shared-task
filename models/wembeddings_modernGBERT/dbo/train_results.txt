@@ -1,0 +1,21 @@
+=== Training Summary ===
+Task: dbo
+Model: LSX-UniWue/ModernGBERT_134M
+Device: cuda
+Train size: 14700
+Val size: 3171
+Labels: ['nothing', 'criticism', 'agitation', 'subversive']
+Label counts: [11054, 3298, 252, 96]
+Class-balanced weights (beta=0.9999): [0.0399, 0.095, 1.0723, 2.7929]
+
+=== Evaluation on Validation Set ===
+              precision    recall  f1-score   support
+
+     nothing       0.96      0.96      0.96      2764
+   criticism       0.71      0.69      0.70       368
+   agitation       0.68      0.90      0.78        29
+  subversive       0.75      0.90      0.82        10
+
+    accuracy                           0.93      3171
+   macro avg       0.78      0.86      0.81      3171
+weighted avg       0.93      0.93      0.93      3171

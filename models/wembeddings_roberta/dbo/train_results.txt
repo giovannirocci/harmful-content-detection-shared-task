@@ -1,0 +1,21 @@
+=== Training Summary ===
+Task: dbo
+Model: cardiffnlp/twitter-xlm-roberta-base
+Device: cuda
+Train size: 14700
+Val size: 3171
+Labels: ['nothing', 'criticism', 'agitation', 'subversive']
+Label counts: [11054, 3298, 252, 96]
+Class-balanced weights (beta=0.9999): [0.0399, 0.095, 1.0723, 2.7929]
+
+=== Evaluation on Validation Set ===
+              precision    recall  f1-score   support
+
+     nothing       0.95      0.95      0.95      2764
+   criticism       0.62      0.63      0.63       368
+   agitation       0.61      0.59      0.60        29
+  subversive       0.43      0.30      0.35        10
+
+    accuracy                           0.91      3171
+   macro avg       0.65      0.62      0.63      3171
+weighted avg       0.91      0.91      0.91      3171

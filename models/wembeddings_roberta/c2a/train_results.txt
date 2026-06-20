@@ -1,0 +1,19 @@
+=== Training Summary ===
+Task: c2a
+Model: cardiffnlp/twitter-xlm-roberta-base
+Device: cuda
+Train size: 14055
+Val size: 3166
+Labels: ['False', 'True']
+Label counts: [11516, 2539]
+Class-balanced weights (beta=0.9999): [0.4939, 1.5061]
+
+=== Evaluation on Validation Set ===
+              precision    recall  f1-score   support
+
+       False       0.97      0.97      0.97      2879
+        True       0.69      0.71      0.70       287
+
+    accuracy                           0.95      3166
+   macro avg       0.83      0.84      0.84      3166
+weighted avg       0.95      0.95      0.95      3166
