@@ -71,7 +71,7 @@ def main(model_paths,
 
     if test_mode:
         print("Test mode: No ground truth labels available for evaluation.")
-        with open(os.path.join(output_dir, f"{task_name}_test_predictions.csv"), "w") as f:
+        with open(os.path.join(output_dir, f"TheMMGs1_{task_name}.csv"), "w") as f:
             f.write(f"id;{task_name}\n")
             for id, pred in zip(df_test['id'], pred_labels):
                 if label_names[pred] == "True":
@@ -80,18 +80,18 @@ def main(model_paths,
                     f.write(f"{id};FALSE\n")
                 else:
                     f.write(f"{id};{label_names[pred]}\n")
-    
-    print("Ensemble Classification Report:")
-    print(classification_report(val_labels, pred_labels, target_names=label_names, zero_division=0))
+    else:
+        print("Ensemble Classification Report:")
+        print(classification_report(val_labels, pred_labels, target_names=label_names, zero_division=0))
 
-    task_output_dir = os.path.join(output_dir, task_name)
-    os.makedirs(task_output_dir, exist_ok=True)
-    with open(os.path.join(task_output_dir, "ensemble_results.txt"), "w") as f:
-        f.write(f"Task: {task_name}\n")
-        f.write(f"Models: {', '.join(names)}\n")
-        f.write(f"Device: {device}\n")
-        f.write(f"Validation Size: {len(val_texts)}\n")
-        f.write(f"Classification Report:\n{classification_report(val_labels, pred_labels, target_names=label_names, zero_division=0)}\n")
+        task_output_dir = os.path.join(output_dir, task_name)
+        os.makedirs(task_output_dir, exist_ok=True)
+        with open(os.path.join(task_output_dir, "ensemble_results.txt"), "w") as f:
+            f.write(f"Task: {task_name}\n")
+            f.write(f"Models: {', '.join(names)}\n")
+            f.write(f"Device: {device}\n")
+            f.write(f"Validation Size: {len(val_texts)}\n")
+            f.write(f"Classification Report:\n{classification_report(val_labels, pred_labels, target_names=label_names, zero_division=0)}\n")
 
 
 if __name__ == "__main__":
