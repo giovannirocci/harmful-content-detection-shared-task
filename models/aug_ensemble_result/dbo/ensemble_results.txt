@@ -1,0 +1,16 @@
+Task: dbo
+Models: wembeddings_roberta, wembeddings_modernGBERT
+Device: cuda
+Validation Size: 3171
+Classification Report:
+              precision    recall  f1-score   support
+
+     nothing       0.96      0.96      0.96      2764
+   criticism       0.73      0.69      0.71       368
+   agitation       0.75      0.72      0.74        29
+  subversive       0.67      0.80      0.73        10
+
+    accuracy                           0.93      3171
+   macro avg       0.78      0.80      0.78      3171
+weighted avg       0.93      0.93      0.93      3171
+

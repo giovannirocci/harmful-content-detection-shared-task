@@ -1,0 +1,14 @@
+Task: def
+Models: wembeddings_roberta, wembeddings_modernGBERT
+Device: cuda
+Validation Size: 653
+Classification Report:
+              precision    recall  f1-score   support
+
+       False       0.97      0.99      0.98       570
+        True       0.92      0.81      0.86        83
+
+    accuracy                           0.97       653
+   macro avg       0.95      0.90      0.92       653
+weighted avg       0.97      0.97      0.97       653
+
