@@ -71,7 +71,7 @@ def main(model_paths,
 
     if test_mode:
         print("Test mode: No ground truth labels available for evaluation.")
-        with open(os.path.join(output_dir, f"TheMMGs1_{task_name}.csv"), "w") as f:
+        with open(os.path.join(output_dir, f"TheMMGs2_{task_name}.csv"), "w") as f:
             f.write(f"id;{task_name}\n")
             for id, pred in zip(df_test['id'], pred_labels):
                 if label_names[pred] == "True":
