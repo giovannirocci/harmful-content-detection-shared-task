@@ -23,7 +23,7 @@ def get_detailed_instruct(query):
 def main(args):
     # Load datasets
     original = pd.read_csv(args.dataset_path, sep=';')
-    pool = load_dataset(args.mining_source, split='train').to_pandas()
+    pool = load_dataset(args.mining_source, split='test').to_pandas()
 
     # Load sentence embedding model
     model = SentenceTransformer('intfloat/multilingual-e5-large-instruct', device='cuda' if torch.cuda.is_available() else 'cpu', trust_remote_code=True)
@@ -34,7 +34,14 @@ def main(args):
     
 
     # Prepare pool sentences and their embeddings
-    pool_hateful = pool[pool['labels'] == 1]['text'].tolist()
+    if 'labels' in pool.columns:
+        pool_hateful = pool[pool['labels'] == 1]['text'].tolist()
+    elif 'lang' in pool.columns:
+        pool_hateful = pool[pool['lang'] == 'de']['toxic_sentence'].tolist()
+    elif 'label_gold' in pool.columns:
+        pool_hateful = pool[pool['label_gold'] == 'hateful']['test_case'].tolist()
+    else:
+        pool_hateful = pool['text'].tolist()
 
     os.makedirs(args.cache_dir, exist_ok=True)
     pool_embeddings_path = os.path.join(args.cache_dir, f'{args.mining_source.split("/")[-1]}_pool_embeddings.npy')
