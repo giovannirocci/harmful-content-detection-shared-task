@@ -1,0 +1,19 @@
+=== Training Summary ===
+Task: def
+Model: LSX-UniWue/ModernGBERT_134M
+Device: cuda
+Train size: 2949
+Val size: 653
+Labels: ['False', 'True']
+Label counts: [2278, 671]
+Class-balanced weights (beta=0.9999): [0.4832, 1.5168]
+
+=== Evaluation on Validation Set ===
+              precision    recall  f1-score   support
+
+       False       0.94      0.90      0.92       570
+        True       0.47      0.58      0.52        83
+
+    accuracy                           0.86       653
+   macro avg       0.70      0.74      0.72       653
+weighted avg       0.88      0.86      0.87       653
