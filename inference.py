@@ -21,7 +21,7 @@ def main(model_paths,
          output_dir="models/ensemble_results",
          test_mode=False):
     
-    task_name = model_paths[0].split("/")[2]
+    task_name = model_paths[0].split("/")[3]  # Assuming the task name is the fourth element in the path
     print(f"Loading models for task: {task_name}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -71,7 +71,7 @@ def main(model_paths,
 
     if test_mode:
         print("Test mode: No ground truth labels available for evaluation.")
-        with open(os.path.join(output_dir, f"TheMMGs2_{task_name}.csv"), "w") as f:
+        with open(os.path.join(output_dir, f"TheMMGs3_{task_name}.csv"), "w") as f:
             f.write(f"id;{task_name}\n")
             for id, pred in zip(df_test['id'], pred_labels):
                 if label_names[pred] == "True":
@@ -93,10 +93,57 @@ def main(model_paths,
             f.write(f"Validation Size: {len(val_texts)}\n")
             f.write(f"Classification Report:\n{classification_report(val_labels, pred_labels, target_names=label_names, zero_division=0)}\n")
 
+def single_model_inference(model_path,
+                           val_split=0.2,
+                           max_length=256,
+                           seed=42,
+                           output_dir="models/single_model_results"):
+    
+    task_name = model_path.split("/")[3]  # Assuming the task name is the fourth element in the path
+    print(f"Loading model for task: {task_name}")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = AutoModelForSequenceClassification.from_pretrained(model_path).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+    test_file = TASK_CONFIG[task_name]['test']
+    df_test = pd.read_csv(test_file, sep=';')
+    text_col = TASK_CONFIG[task_name]['text_col']
+    val_texts = df_test[text_col].tolist()
+    val_labels = [0] * len(val_texts)  # Placeholder labels
+    label_names = [str(name) for name in TASK_CONFIG[task_name]['labels']]
+
+    dataset = TextClassificationDataset(val_texts, val_labels, tokenizer, max_length)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False)
+    model.to(device)
+    model.eval()
+
+    model_preds = []
+    with torch.no_grad():
+        for batch in dataloader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            logits = outputs.logits
+            probs = F.softmax(logits, dim=-1).cpu().numpy()
+            model_preds.extend(probs.tolist())
+    pred_labels = np.argmax(model_preds, axis=1)
+
+    print("Test mode: No ground truth labels available for evaluation.")
+    with open(os.path.join(output_dir, f"TheMMGs3_{task_name}.csv"), "w") as f:
+        f.write(f"id;{task_name}\n")
+        for id, pred in zip(df_test['id'], pred_labels):
+            if label_names[pred] == "True":
+                f.write(f"{id};TRUE\n")
+            elif label_names[pred] == "False":
+                f.write(f"{id};FALSE\n")
+            else:
+                f.write(f"{id};{label_names[pred]}\n")
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ensemble Inference for Text Classification")
-    parser.add_argument("--model_paths", "-mp", nargs="+", required=True, help="Paths to the trained models for ensembling")
+    parser = argparse.ArgumentParser(description="Inference for Text Classification")
+    parser.add_argument("--single_model_path", "-smp", type=str, help="Path to a single trained model for inference")
+    parser.add_argument("--model_paths", "-mp", nargs="+", help="Paths to the trained models for ensembling")
     parser.add_argument("--val_split", type=float, default=0.2, help="Validation split ratio")
     parser.add_argument("--max_length", type=int, default=256, help="Maximum sequence length for tokenization")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
@@ -105,13 +152,24 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
-    
-    main(
-        model_paths=args.model_paths,
-        val_split=args.val_split,
-        max_length=args.max_length,
-        seed=args.seed,
-        output_dir=args.output_dir,
-        test_mode=args.test_mode
-    )
+
+    if args.single_model_path:
+        single_model_inference(
+            model_path=args.single_model_path,
+            val_split=args.val_split,
+            max_length=args.max_length,
+            seed=args.seed,
+            output_dir=args.output_dir
+        )
+    elif args.model_paths:
+        main(
+            model_paths=args.model_paths,
+            val_split=args.val_split,
+            max_length=args.max_length,
+            seed=args.seed,
+            output_dir=args.output_dir,
+            test_mode=args.test_mode
+        )
+    else:
+        raise ValueError("Please provide either --single_model_path or --model_paths for inference.")
     
